@@ -1,0 +1,5 @@
+# Runtime: stdlib only, except the Otari SDK (needed only for the real
+# --provider otari path; without OTARI_AI_TOKEN the app runs in mock mode
+# and never imports it). pytest from the original repo file is omitted —
+# tests do not ship to Vercel.
+otari
