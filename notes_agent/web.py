@@ -6,6 +6,11 @@ the same local search, the same grounded-refusal rule, and the same
 routing + budget panel. The UI is the thing that *shows* Otari
 routing; it does not invent it.
 
+The hero is a real Three.js 3D routing gateway (CDN, auto-starts on
+first load): the Otari gateway at the centre, provider nodes orbiting
+it, spokes showing the route. Drag to spin. It is decorative — every
+action works without it.
+
 Run:  python3 run.py serve            (http://127.0.0.1:8767/)
       python3 run.py serve --port 8000
 
@@ -26,6 +31,7 @@ PAGE = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>NoteVault — Ask your notes, routed smart</title>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 <style>
 body{font-family:system-ui,sans-serif;max-width:1100px;margin:24px auto;padding:0 16px;color:#1a1a1a;background:#fafaf7}
 h1{font-size:1.6em;margin-bottom:0}.tag{color:#555}
@@ -42,14 +48,17 @@ input,select{width:100%;padding:9px;border:1px solid #bbb;border-radius:8px;box-
 pre{white-space:pre-wrap;word-wrap:break-word;background:#f4f4f4;padding:10px;border-radius:8px}
 .note-item{cursor:pointer;padding:6px;border-radius:6px}.note-item:hover{background:#eef}
 small{color:#555}
+#hero3d{display:block;width:100%;height:260px;background:#1a1a1a;border-radius:12px;margin:14px 0 4px}.scroll-cue{font-size:14px}
 </style></head><body>
 <h1>NoteVault</h1>
 <p class="tag"><b>Ask your notes, routed smart.</b> One Otari gateway, many providers.
 The panel on the right shows, for every answer, which provider/model was chosen and why,
 what the fallback is, and how much of the local budget is left. Grounded answers only:
 if your notes do not match, it refuses instead of guessing.</p>
+<canvas id="hero3d" aria-label="Three.js 3D routing gateway: the Otari gateway at the centre with provider nodes orbiting it. Drag to spin."></canvas>
+<p><a class="scroll-cue" href="#vault">Scroll to your notes &darr;</a></p>
 <div id="modebar"><span id="modebadge" class="badge mock">[mock]</span> <span id="modeline"></span></div>
-<div class="grid">
+<div class="grid" id="vault">
 <div class="card"><h3>Your notes</h3><div id="notes">Loading…</div><h3>Note preview</h3><pre id="preview">Click a note.</pre></div>
 <div class="card"><h3>Ask</h3>
 <label>Question <input id="q" placeholder="What is Abhiverse for?"></label><br><br>
@@ -125,6 +134,71 @@ async function organise(){ document.getElementById('plan').textContent = (await 
 async function showNote(p){ const n = await api('/api/note?path=' + encodeURIComponent(p)); document.getElementById('preview').textContent = n.title + String.fromCharCode(10, 10) + n.body; }
 async function resetBudget(){ await api('/api/reset-budget', {}); await load(); }
 load();
+</script>
+<script>
+(function(){
+var cv=document.getElementById('hero3d');
+if(!cv||!window.THREE){return;}
+var reduced=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+var renderer;
+try{renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});}
+catch(e){return;}
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+var scene=new THREE.Scene();
+var camera=new THREE.PerspectiveCamera(50,2,0.1,100);
+camera.position.set(0,0.4,5.4);
+camera.lookAt(0,0,0);
+var group=new THREE.Group();
+scene.add(group);
+
+var core=new THREE.Mesh(new THREE.SphereGeometry(0.55,24,18),new THREE.MeshBasicMaterial({color:0xd98200}));
+group.add(core);
+var coreWire=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(0.62,1)),new THREE.LineBasicMaterial({color:0x1a1a1a}));
+group.add(coreWire);
+var providers=[0x1f6b3a,0x2f6fb2,0x8a6d00,0xb42318,0x6a4fa3];
+var ring=new THREE.Mesh(new THREE.TorusGeometry(1.9,0.015,8,80),new THREE.MeshBasicMaterial({color:0xbbbbbb}));
+ring.rotation.x=Math.PI/2;
+group.add(ring);
+providers.forEach(function(c,i){
+var ang=i/5*Math.PI*2;
+var node=new THREE.Mesh(new THREE.SphereGeometry(0.22,16,12),new THREE.MeshBasicMaterial({color:c}));
+node.position.set(Math.cos(ang)*1.9,Math.sin(ang*2)*0.35,Math.sin(ang)*1.9);
+group.add(node);
+var spoke=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),node.position.clone()]);
+group.add(new THREE.Line(spoke,new THREE.LineBasicMaterial({color:0x999999})));
+});
+
+function resize(){
+var w=cv.clientWidth||800;
+var h=cv.clientHeight||260;
+renderer.setSize(w,h,false);
+camera.aspect=w/h;
+camera.updateProjectionMatrix();
+}
+window.addEventListener('resize',resize);
+resize();
+var dragging=false,lastX=0,vel=0;
+cv.addEventListener('pointerdown',function(e){dragging=true;lastX=e.clientX;});
+window.addEventListener('pointerup',function(){dragging=false;});
+cv.addEventListener('pointermove',function(e){
+if(!dragging){return;}
+var dx=e.clientX-lastX;
+lastX=e.clientX;
+group.rotation.y+=dx*0.005;
+vel=dx*0.0004;
+});
+var start=Date.now();
+function tick(){
+requestAnimationFrame(tick);
+var t=(Date.now()-start)/1000;
+if(!document.hidden&&!reduced){
+group.rotation.y+=0.0035+vel;
+vel*=0.95;
+}
+renderer.render(scene,camera);
+}
+tick();
+})();
 </script></body></html>
 """
 
